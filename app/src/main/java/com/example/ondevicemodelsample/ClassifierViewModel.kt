@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ondevicemodelsample.ml.Classification
 import com.example.ondevicemodelsample.ml.ImageClassifier
+import com.example.ondevicemodelsample.ml.ModelPerformance
 import com.example.ondevicemodelsample.util.BitmapUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,7 @@ data class ClassifierUiState(
     val results: List<Classification> = emptyList(),
     val isRunning: Boolean = false,
     val error: String? = null,
-    val inferenceMs: Long? = null,
+    val performance: ModelPerformance? = null,
 )
 
 class ClassifierViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,7 +41,7 @@ class ClassifierViewModel(application: Application) : AndroidViewModel(applicati
             results = emptyList(),
             isRunning = true,
             error = null,
-            inferenceMs = null,
+            performance = null,
         )
         viewModelScope.launch {
             runCatching {
@@ -48,16 +49,13 @@ class ClassifierViewModel(application: Application) : AndroidViewModel(applicati
                     val bitmap: Bitmap = BitmapUtils.decodeSampled(getApplication(), uri)
                         ?: error("Unable to decode image")
                     val engine = getOrCreateClassifier()
-                    val start = System.currentTimeMillis()
-                    val results = engine.classify(bitmap, topK = 3)
-                    val elapsed = System.currentTimeMillis() - start
-                    results to elapsed
+                    engine.classify(bitmap, topK = 3)
                 }
-            }.onSuccess { (results, elapsed) ->
+            }.onSuccess { result ->
                 _uiState.value = _uiState.value.copy(
-                    results = results,
+                    results = result.classifications,
                     isRunning = false,
-                    inferenceMs = elapsed,
+                    performance = result.performance,
                 )
             }.onFailure { t ->
                 _uiState.value = _uiState.value.copy(

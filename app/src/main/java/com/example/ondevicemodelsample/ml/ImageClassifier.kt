@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
+import android.os.Process
+import android.util.Log
 import org.tensorflow.lite.Interpreter
 import java.io.Closeable
 import java.nio.ByteBuffer
@@ -13,6 +15,11 @@ import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
 data class Classification(val label: String, val confidence: Float)
+
+data class ClassificationResult(
+    val classifications: List<Classification>,
+    val performance: ModelPerformance
+)
 
 class ImageClassifier private constructor(
     private val interpreter: Interpreter,
@@ -27,7 +34,11 @@ class ImageClassifier private constructor(
 
     private val pixels = IntArray(inputWidth * inputHeight)
 
-    fun classify(bitmap: Bitmap, topK: Int = 3): List<Classification> {
+    fun classify(bitmap: Bitmap, topK: Int = 3): ClassificationResult {
+        val startTime = System.currentTimeMillis()
+        val startCpuTime = Process.getElapsedCpuTime()
+        val startMemory = getUsedMemory()
+
         val rgb = if (bitmap.config == Bitmap.Config.ARGB_8888) bitmap
         else bitmap.copy(Bitmap.Config.ARGB_8888, false)
 
@@ -53,10 +64,31 @@ class ImageClassifier private constructor(
 
         val scores = output[0]
         val limit = minOf(scores.size, labels.size)
-        return (0 until limit)
+        val classifications = (0 until limit)
             .sortedByDescending { scores[it] }
             .take(topK)
             .map { Classification(labels[it], scores[it]) }
+
+        val endTime = System.currentTimeMillis()
+        val endCpuTime = Process.getElapsedCpuTime()
+        val endMemory = getUsedMemory()
+
+        val performance = ModelPerformance(
+            inferenceTimeMs = endTime - startTime,
+            memoryUsageMb = (endMemory - startMemory).coerceAtLeast(0.0),
+            cpuTimeNs = (endCpuTime - startCpuTime) * 1_000_000L // Convert ms to ns for consistency
+        )
+
+        Log.d("ImageClassifier", "Inference: ${performance.inferenceTimeMs}ms, " +
+                "Memory: ${"%.2f".format(performance.memoryUsageMb)}MB, " +
+                "CPU: ${performance.cpuTimeNs}ns")
+
+        return ClassificationResult(classifications, performance)
+    }
+
+    private fun getUsedMemory(): Double {
+        val runtime = Runtime.getRuntime()
+        return (runtime.totalMemory() - runtime.freeMemory()).toDouble() / (1024 * 1024)
     }
 
     private fun centerCropAndResize(src: Bitmap, dstW: Int, dstH: Int): Bitmap {

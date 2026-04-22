@@ -203,7 +203,7 @@ fun ClassifierScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text("Top predictions", fontWeight = FontWeight.SemiBold)
-                        uiState.inferenceMs?.let {
+                        uiState.performance?.inferenceTimeMs?.let {
                             Text(
                                 "${it} ms",
                                 style = MaterialTheme.typography.bodySmall,
