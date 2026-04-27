@@ -3,6 +3,7 @@ package com.example.ondevicemodelsample
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ondevicemodelsample.ml.ClassificationResult
@@ -31,6 +32,32 @@ class ClassifierViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun getOrCreateClassifier(): ImageClassifier {
         return classifier ?: ImageClassifier.create(getApplication()).also { classifier = it }
+    }
+
+    fun classifyAsset(assetPath: String) {
+        val uri = "file:///android_asset/$assetPath".toUri()
+        _uiState.value = _uiState.value.copy(
+            imageUri = uri,
+            result = null,
+            isRunning = true,
+            error = null,
+        )
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.Default) {
+                    val bitmap: Bitmap = BitmapUtils.decodeAsset(getApplication(), assetPath)
+                        ?: error("Unable to decode asset $assetPath")
+                    getOrCreateClassifier().classify(bitmap)
+                }
+            }.onSuccess { result ->
+                _uiState.value = _uiState.value.copy(result = result, isRunning = false)
+            }.onFailure { t ->
+                _uiState.value = _uiState.value.copy(
+                    isRunning = false,
+                    error = t.message ?: "Classification failed",
+                )
+            }
+        }
     }
 
     fun classify(uri: Uri) {

@@ -61,6 +61,14 @@ object BitmapUtils {
         }
     }
 
+    fun decodeAsset(context: Context, assetName: String): Bitmap? {
+        return context.assets.open(assetName).use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply {
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            })
+        }
+    }
+
     fun createCaptureFile(context: Context): File {
         val dir = File(context.cacheDir, "captures").apply { mkdirs() }
         return File.createTempFile("capture_", ".jpg", dir)

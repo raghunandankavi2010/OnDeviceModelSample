@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -33,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -141,6 +148,8 @@ fun ClassifierScreen(
             ) { Text("Camera") }
         }
 
+        Spacer(Modifier.height(12.dp))
+        SampleRow { asset -> viewModel.classifyAsset(asset) }
         Spacer(Modifier.height(16.dp))
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -353,6 +362,52 @@ private fun ScoreList(items: List<Classification>) {
             progress = { r.confidence.coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+private data class Sample(val title: String, val asset: String)
+
+private val SAMPLES = listOf(
+    Sample("Tomato · Healthy", "samples/tomato_healthy.jpg"),
+    Sample("Tomato · Late blight", "samples/tomato_late_blight.jpg"),
+    Sample("Apple · Healthy", "samples/apple_healthy.jpg"),
+    Sample("Potato · Early blight", "samples/potato_early_blight.jpg"),
+    Sample("Corn · Healthy", "samples/corn_healthy.jpg"),
+    Sample("Grape · Black rot", "samples/grape_black_rot.jpg"),
+)
+
+@Composable
+private fun SampleRow(onPick: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Sample plants (PlantVillage · CC0)",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(SAMPLES) { sample ->
+                Column(
+                    modifier = Modifier
+                        .width(96.dp)
+                        .clickable { onPick(sample.asset) },
+                ) {
+                    AsyncImage(
+                        model = "file:///android_asset/${sample.asset}",
+                        contentDescription = sample.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        sample.title,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
     }
 }
 

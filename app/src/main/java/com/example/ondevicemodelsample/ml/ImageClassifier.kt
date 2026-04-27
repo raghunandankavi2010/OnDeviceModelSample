@@ -249,17 +249,19 @@ class ImageClassifier private constructor(
         // PlantVillage softmax must clear this when the gate has confirmed plant-like
         private const val PLANT_ACCEPT_THRESHOLD = 0.55f
 
-        // When the gate is ambiguous, require this much from PlantVillage instead. Stops
-        // OOD images (dogs, faces) from passing because PlantVillage's softmax always
-        // sums to 1 even on garbage input.
-        private const val STRICT_PLANT_THRESHOLD = 0.90f
+        // When the gate is ambiguous (low-conf or non-allowlist), require this from
+        // PlantVillage. PlantVillage's softmax always sums to 1 even on OOD input, so
+        // this needs to be above where dogs/faces tend to peak (~0.5-0.6).
+        private const val STRICT_PLANT_THRESHOLD = 0.75f
 
         // Gate top-1 must clear this for an allowlist plant class to count as "plant"
         private const val GATE_PLANT_THRESHOLD = 0.30f
 
         // If the gate's top-1 is non-plant with at least this confidence, we reject
-        // immediately and don't even run the PlantVillage model.
-        private const val GATE_REJECT_THRESHOLD = 0.35f
+        // immediately. Raised from 0.35 → 0.55 so wide-scene camera shots (where the
+        // gate's top-1 is something random like "menu" or "table" at ~0.4) can still
+        // fall through to PlantVillage.
+        private const val GATE_REJECT_THRESHOLD = 0.55f
 
         private val PLANT_ALLOWLIST = setOf(
             "head cabbage", "broccoli", "cauliflower", "zucchini",
