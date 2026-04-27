@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
+import android.os.Debug
 import android.os.Process
 import android.util.Log
 import org.tensorflow.lite.Interpreter
@@ -105,7 +106,8 @@ class ImageClassifier private constructor(
     fun classify(bitmap: Bitmap): ClassificationResult {
         val startTime = System.currentTimeMillis()
         val startCpu = Process.getElapsedCpuTime()
-        val startMem = getUsedMemory()
+        val startHeap = usedHeapBytes()
+        val startNative = Debug.getNativeHeapAllocatedSize()
 
         // Stage 1: ImageNet gate runs first. It's a 1001-class model that fires confidently
         // on dogs/cars/people, which lets us reject non-plants before they reach the
@@ -174,18 +176,35 @@ class ImageClassifier private constructor(
 
         val endTime = System.currentTimeMillis()
         val endCpu = Process.getElapsedCpuTime()
-        val endMem = getUsedMemory()
+        val endHeap = usedHeapBytes()
+        val endNative = Debug.getNativeHeapAllocatedSize()
+
+        val wallMs = (endTime - startTime).coerceAtLeast(0L)
+        val cpuMs = (endCpu - startCpu).coerceAtLeast(0L)
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        val utilizationPct = if (wallMs > 0) {
+            (cpuMs.toDouble() / (wallMs.toDouble() * cores)) * 100.0
+        } else 0.0
         val performance = ModelPerformance(
-            inferenceTimeMs = endTime - startTime,
-            memoryUsageMb = (endMem - startMem).coerceAtLeast(0.0),
-            cpuTimeNs = (endCpu - startCpu) * 1_000_000L,
+            inferenceTimeMs = wallMs,
+            cpuTimeMs = cpuMs,
+            cpuUtilizationPercent = utilizationPct,
+            heapUsedMb = endHeap / BYTES_PER_MB,
+            heapDeltaMb = (endHeap - startHeap) / BYTES_PER_MB,
+            nativeUsedMb = endNative / BYTES_PER_MB,
+            nativeDeltaMb = (endNative - startNative) / BYTES_PER_MB,
         )
 
         Log.d(
             TAG,
             "verdict=$verdict plant=$plantType cond=$condition conf=$confidence " +
                     "gateTop=${gateTop.label}@${gateTop.confidence} " +
-                    "time=${performance.inferenceTimeMs}ms",
+                    "wall=${performance.inferenceTimeMs}ms cpu=${performance.cpuTimeMs}ms " +
+                    "util=${"%.0f".format(performance.cpuUtilizationPercent)}%/" +
+                    "${cores}c heap=${"%.1f".format(performance.heapUsedMb)}MB " +
+                    "(Δ${"%+.2f".format(performance.heapDeltaMb)}) " +
+                    "native=${"%.1f".format(performance.nativeUsedMb)}MB " +
+                    "(Δ${"%+.2f".format(performance.nativeDeltaMb)})",
         )
 
         return ClassificationResult(
@@ -205,13 +224,14 @@ class ImageClassifier private constructor(
         plant.close()
     }
 
-    private fun getUsedMemory(): Double {
+    private fun usedHeapBytes(): Long {
         val r = Runtime.getRuntime()
-        return (r.totalMemory() - r.freeMemory()).toDouble() / (1024 * 1024)
+        return r.totalMemory() - r.freeMemory()
     }
 
     companion object {
         private const val TAG = "ImageClassifier"
+        private const val BYTES_PER_MB = 1024.0 * 1024.0
 
         private const val PLANT_MODEL = "plant_disease_model.tflite"
         private const val PLANT_LABELS = "plant_labels.txt"

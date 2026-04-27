@@ -44,8 +44,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.ondevicemodelsample.ml.Classification
 import com.example.ondevicemodelsample.ml.ClassificationResult
+import com.example.ondevicemodelsample.ml.ModelPerformance
 import com.example.ondevicemodelsample.ml.Verdict
 import com.example.ondevicemodelsample.util.BitmapUtils
+import com.example.ondevicemodelsample.util.DeviceInfo
 import java.io.File
 
 @Composable
@@ -55,6 +57,7 @@ fun ClassifierScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+    val deviceInfo = remember { DeviceInfo.collect(context) }
 
     val pendingCaptureFile = remember { Holder<File>() }
     val pendingCaptureUri = remember { Holder<android.net.Uri>() }
@@ -199,8 +202,13 @@ fun ClassifierScreen(
         uiState.result?.let { result ->
             VerdictCard(result)
             Spacer(Modifier.height(12.dp))
+            PerformanceCard(result.performance, deviceInfo.cores)
+            Spacer(Modifier.height(12.dp))
             DetailCard(result)
+            Spacer(Modifier.height(12.dp))
         }
+
+        DeviceCard(deviceInfo)
 
         Spacer(Modifier.height(24.dp))
     }
@@ -227,21 +235,75 @@ private fun VerdictCard(result: ClassificationResult) {
             Text(result.summary, style = MaterialTheme.typography.bodyLarge)
             if (result.verdict != Verdict.NOT_PLANT) {
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        "Confidence: %.1f%%".format(result.confidence * 100f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(
-                        "${result.performance.inferenceTimeMs} ms",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                Text(
+                    "Confidence: %.1f%%".format(result.confidence * 100f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun PerformanceCard(perf: ModelPerformance, cores: Int) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text("Performance", fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+            MetricRow("Inference (wall)", "${perf.inferenceTimeMs} ms")
+            MetricRow("CPU time", "${perf.cpuTimeMs} ms")
+            MetricRow(
+                "CPU utilization",
+                "%.0f%% of %d cores".format(perf.cpuUtilizationPercent, cores),
+            )
+            MetricRow(
+                "Java heap",
+                "%.1f MB (Δ %+.2f MB)".format(perf.heapUsedMb, perf.heapDeltaMb),
+            )
+            MetricRow(
+                "Native heap",
+                "%.1f MB (Δ %+.2f MB)".format(perf.nativeUsedMb, perf.nativeDeltaMb),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeviceCard(info: DeviceInfo) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text("Device", fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+            MetricRow("Model", info.displayName)
+            MetricRow("Android", "${info.androidVersion} (API ${info.apiLevel})")
+            MetricRow("ABI", info.primaryAbi)
+            MetricRow("CPU cores", info.cores.toString())
+            MetricRow("System RAM", "${info.totalRamMb} MB")
+            MetricRow("App max heap", "${info.maxHeapMb} MB")
+        }
+    }
+}
+
+@Composable
+private fun MetricRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall)
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
 }
 

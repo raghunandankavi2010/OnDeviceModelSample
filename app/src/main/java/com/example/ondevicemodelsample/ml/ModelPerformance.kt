@@ -2,6 +2,10 @@ package com.example.ondevicemodelsample.ml
 
 data class ModelPerformance(
     val inferenceTimeMs: Long,
-    val memoryUsageMb: Double,
-    val cpuTimeNs: Long = 0L
+    val cpuTimeMs: Long,
+    val cpuUtilizationPercent: Double,
+    val heapUsedMb: Double,
+    val heapDeltaMb: Double,
+    val nativeUsedMb: Double,
+    val nativeDeltaMb: Double,
 )
