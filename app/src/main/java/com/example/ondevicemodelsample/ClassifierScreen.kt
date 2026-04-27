@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -32,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +42,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.ondevicemodelsample.ml.Classification
+import com.example.ondevicemodelsample.ml.ClassificationResult
+import com.example.ondevicemodelsample.ml.Verdict
 import com.example.ondevicemodelsample.util.BitmapUtils
 import java.io.File
 
@@ -96,12 +101,12 @@ fun ClassifierScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "On-device Image Classification",
+            text = "Plant & Disease Classifier",
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
         )
         Text(
-            text = "MobileNetV2 · TensorFlow Lite",
+            text = "PlantVillage MobileNetV2 + ImageNet gate · TensorFlow Lite",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(bottom = 16.dp),
         )
@@ -191,50 +196,101 @@ fun ClassifierScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        if (uiState.results.isNotEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text("Top predictions", fontWeight = FontWeight.SemiBold)
-                        uiState.performance?.inferenceTimeMs?.let {
-                            Text(
-                                "${it} ms",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
-                    uiState.results.forEachIndexed { i, r ->
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                "${i + 1}. ${r.label}",
-                                fontWeight = if (i == 0) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                            Text("%.1f%%".format(r.confidence * 100f))
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(
-                            progress = { r.confidence.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
+        uiState.result?.let { result ->
+            VerdictCard(result)
+            Spacer(Modifier.height(12.dp))
+            DetailCard(result)
         }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun VerdictCard(result: ClassificationResult) {
+    val (label, color) = when (result.verdict) {
+        Verdict.PLANT_RECOGNIZED -> "Plant identified" to Color(0xFF2E7D32)
+        Verdict.PLANT_UNCERTAIN -> "Plant detected" to Color(0xFF9A6E00)
+        Verdict.NOT_PLANT -> "Not a plant" to Color(0xFFB00020)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.10f)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text(label, fontWeight = FontWeight.SemiBold, color = color)
+            Spacer(Modifier.height(6.dp))
+            Text(result.summary, style = MaterialTheme.typography.bodyLarge)
+            if (result.verdict != Verdict.NOT_PLANT) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "Confidence: %.1f%%".format(result.confidence * 100f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        "${result.performance.inferenceTimeMs} ms",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailCard(result: ClassificationResult) {
+    if (result.plantPredictions.isEmpty() && result.gatePredictions.isEmpty()) return
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            if (result.gatePredictions.isNotEmpty()) {
+                Text("Gate model (ImageNet)", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
+                ScoreList(result.gatePredictions)
+            }
+
+            if (result.plantPredictions.isNotEmpty()) {
+                if (result.gatePredictions.isNotEmpty()) Spacer(Modifier.height(16.dp))
+                Text("Disease model (PlantVillage)", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
+                ScoreList(result.plantPredictions)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScoreList(items: List<Classification>) {
+    items.forEachIndexed { i, r ->
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "${i + 1}. ${r.label}",
+                fontWeight = if (i == 0) FontWeight.SemiBold else FontWeight.Normal,
+            )
+            Text("%.1f%%".format(r.confidence * 100f))
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { r.confidence.coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
