@@ -6,13 +6,18 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ondevicemodelsample.data.FeedbackDatabase
+import com.example.ondevicemodelsample.data.FeedbackEntity
+import com.example.ondevicemodelsample.data.FeedbackStats
 import com.example.ondevicemodelsample.ml.ClassificationResult
 import com.example.ondevicemodelsample.ml.ImageClassifier
 import com.example.ondevicemodelsample.util.BitmapUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -21,12 +26,18 @@ data class ClassifierUiState(
     val result: ClassificationResult? = null,
     val isRunning: Boolean = false,
     val error: String? = null,
+    val feedbackGiven: Boolean = false,
 )
 
 class ClassifierViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(ClassifierUiState())
     val uiState: StateFlow<ClassifierUiState> = _uiState.asStateFlow()
+
+    private val feedbackDao = FeedbackDatabase.get(application).feedbackDao()
+
+    val feedbackStats: StateFlow<FeedbackStats> = feedbackDao.observeStats()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FeedbackStats())
 
     private var classifier: ImageClassifier? = null
 
@@ -41,6 +52,7 @@ class ClassifierViewModel(application: Application) : AndroidViewModel(applicati
             result = null,
             isRunning = true,
             error = null,
+            feedbackGiven = false,
         )
         viewModelScope.launch {
             runCatching {
@@ -66,6 +78,7 @@ class ClassifierViewModel(application: Application) : AndroidViewModel(applicati
             result = null,
             isRunning = true,
             error = null,
+            feedbackGiven = false,
         )
         viewModelScope.launch {
             runCatching {
@@ -85,6 +98,24 @@ class ClassifierViewModel(application: Application) : AndroidViewModel(applicati
                     error = t.message ?: "Classification failed",
                 )
             }
+        }
+    }
+
+    fun submitFeedback(isCorrect: Boolean) {
+        val state = _uiState.value
+        val result = state.result ?: return
+        if (state.feedbackGiven) return
+        _uiState.value = state.copy(feedbackGiven = true)
+        viewModelScope.launch {
+            feedbackDao.insert(
+                FeedbackEntity(
+                    verdict = result.verdict.name,
+                    predictedLabel = result.summary,
+                    confidence = result.confidence,
+                    isCorrect = isCorrect,
+                    timestamp = System.currentTimeMillis(),
+                )
+            )
         }
     }
 

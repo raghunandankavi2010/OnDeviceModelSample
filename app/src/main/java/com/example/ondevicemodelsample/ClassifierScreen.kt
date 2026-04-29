@@ -49,6 +49,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.ondevicemodelsample.data.FeedbackStats
 import com.example.ondevicemodelsample.ml.Classification
 import com.example.ondevicemodelsample.ml.ClassificationResult
 import com.example.ondevicemodelsample.ml.ModelPerformance
@@ -64,6 +65,7 @@ fun ClassifierScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+    val feedbackStats by viewModel.feedbackStats.collectAsState()
     val deviceInfo = remember { DeviceInfo.collect(context) }
 
     val pendingCaptureFile = remember { Holder<File>() }
@@ -211,11 +213,20 @@ fun ClassifierScreen(
         uiState.result?.let { result ->
             VerdictCard(result)
             Spacer(Modifier.height(12.dp))
+            FeedbackCard(
+                feedbackGiven = uiState.feedbackGiven,
+                onCorrect = { viewModel.submitFeedback(true) },
+                onIncorrect = { viewModel.submitFeedback(false) },
+            )
+            Spacer(Modifier.height(12.dp))
             PerformanceCard(result.performance, deviceInfo.cores)
             Spacer(Modifier.height(12.dp))
             DetailCard(result)
             Spacer(Modifier.height(12.dp))
         }
+
+        FeedbackStatsCard(feedbackStats)
+        Spacer(Modifier.height(12.dp))
 
         DeviceCard(deviceInfo)
 
@@ -248,6 +259,72 @@ private fun VerdictCard(result: ClassificationResult) {
                     "Confidence: %.1f%%".format(result.confidence * 100f),
                     style = MaterialTheme.typography.bodySmall,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedbackCard(
+    feedbackGiven: Boolean,
+    onCorrect: () -> Unit,
+    onIncorrect: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text("Was this classification correct?", fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(12.dp))
+            if (feedbackGiven) {
+                Text(
+                    "Thanks — feedback recorded.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Button(
+                        onClick = onCorrect,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Correct") }
+                    OutlinedButton(
+                        onClick = onIncorrect,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Incorrect") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedbackStatsCard(stats: FeedbackStats) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text("Feedback stats", fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+            if (stats.total == 0) {
+                Text(
+                    "No feedback yet. Classify an image and tell the app whether it got it right.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                MetricRow("Total reviews", stats.total.toString())
+                MetricRow("Correct", stats.correct.toString())
+                MetricRow("Incorrect", stats.incorrect.toString())
+                MetricRow("Accuracy", "%.1f%%".format(stats.accuracyPercent))
             }
         }
     }
