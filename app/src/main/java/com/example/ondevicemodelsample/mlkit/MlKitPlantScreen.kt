@@ -3,6 +3,7 @@ package com.example.ondevicemodelsample.mlkit
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,11 +43,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.ondevicemodelsample.util.BitmapUtils
-import java.io.File
+import com.example.ondevicemodelsample.util.MediaStoreUtils
 
 @Composable
 fun MlKitPlantScreen(
@@ -69,23 +68,31 @@ fun MlKitPlantScreen(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         val uri = pendingCaptureUri.value
-        if (success && uri != null) viewModel.classify(uri)
+        if (uri != null) {
+            if (success) {
+                MediaStoreUtils.finalizeGalleryImage(context, uri)
+                viewModel.classify(uri)
+            } else {
+                MediaStoreUtils.discardGalleryImage(context, uri)
+            }
+            pendingCaptureUri.value = null
+        }
     }
 
     fun launchCamera() {
-        val file: File = BitmapUtils.createCaptureFile(context)
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
+        val uri = MediaStoreUtils.createGalleryImageUri(context) ?: return
         pendingCaptureUri.value = uri
         cameraLauncher.launch(uri)
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) launchCamera() }
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val cameraGranted = results[Manifest.permission.CAMERA] == true
+        val storageOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
+            results[Manifest.permission.WRITE_EXTERNAL_STORAGE] == true
+        if (cameraGranted && storageOk) launchCamera()
+    }
 
     Column(
         modifier = Modifier
@@ -131,11 +138,19 @@ fun MlKitPlantScreen(
 
             OutlinedButton(
                 onClick = {
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) launchCamera()
-                    else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    val needed = buildList {
+                        if (ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.CAMERA
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) add(Manifest.permission.CAMERA)
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                            ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.WRITE_EXTERNAL_STORAGE
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    }
+                    if (needed.isEmpty()) launchCamera()
+                    else cameraPermissionLauncher.launch(needed.toTypedArray())
                 },
                 modifier = Modifier.weight(1f),
             ) { Text("Camera") }

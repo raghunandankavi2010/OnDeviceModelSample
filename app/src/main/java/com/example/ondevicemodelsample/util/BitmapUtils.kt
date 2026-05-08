@@ -6,8 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
-import java.io.File
-import java.io.FileOutputStream
 
 object BitmapUtils {
 
@@ -69,14 +67,4 @@ object BitmapUtils {
         }
     }
 
-    fun createCaptureFile(context: Context): File {
-        val dir = File(context.cacheDir, "captures").apply { mkdirs() }
-        return File.createTempFile("capture_", ".jpg", dir)
-    }
-
-    fun writeBitmap(file: File, bitmap: Bitmap) {
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
-        }
-    }
 }
