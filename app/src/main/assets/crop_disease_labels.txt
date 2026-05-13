@@ -1,0 +1,17 @@
+Corn___Common_Rust
+Corn___Gray_Leaf_Spot
+Corn___Northern_Leaf_Blight
+Corn___Healthy
+Potato___Early_Blight
+Potato___Late_Blight
+Potato___Healthy
+Rice___Brown_Spot
+Rice___Leaf_Blast
+Rice___Neck_Blast
+Rice___Healthy
+Wheat___Yellow_Rust
+Wheat___Brown_Rust
+Wheat___Healthy
+Sugarcane___Red_Rot
+Sugarcane___Bacterial_Blight
+Sugarcane___Healthy

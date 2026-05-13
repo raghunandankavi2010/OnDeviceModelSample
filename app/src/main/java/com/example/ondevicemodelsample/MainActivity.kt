@@ -15,10 +15,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.ondevicemodelsample.cropdisease.CropDiseaseScreen
 import com.example.ondevicemodelsample.mlkit.MlKitPlantScreen
 import com.example.ondevicemodelsample.ui.theme.OnDeviceModelSampleTheme
 
-private enum class Screen { Classifier, MlKit }
+private enum class Screen { Classifier, MlKit, CropDisease }
 
 class MainActivity : ComponentActivity() {
 
@@ -39,6 +40,9 @@ class MainActivity : ComponentActivity() {
                                     TextButton(onClick = { screen = Screen.MlKit }) {
                                         Text("ML Kit")
                                     }
+                                    TextButton(onClick = { screen = Screen.CropDisease }) {
+                                        Text("Crop Disease")
+                                    }
                                 },
                             )
                         }
@@ -47,6 +51,10 @@ class MainActivity : ComponentActivity() {
                     when (screen) {
                         Screen.Classifier -> ClassifierScreen(contentPadding = innerPadding)
                         Screen.MlKit -> MlKitPlantScreen(
+                            contentPadding = innerPadding,
+                            onBack = { screen = Screen.Classifier },
+                        )
+                        Screen.CropDisease -> CropDiseaseScreen(
                             contentPadding = innerPadding,
                             onBack = { screen = Screen.Classifier },
                         )
